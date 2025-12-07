@@ -1,0 +1,247 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AuthToken {
+  token: String!
+}
+
+input AwardTeacherBadgeInput {
+  courseId: String!
+  metadataURI: String!
+  ratingScore: Int!
+  teacherAddress: String!
+}
+
+input CompleteCourseOnchainInput {
+  courseId: String!
+  metadataURI: String!
+  studentAddress: String!
+}
+
+type Course {
+  category: String
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  priceYd: Float!
+  rating: Float!
+  reviewCount: Int!
+  reviews: [Review!]!
+  status: String!
+  teacherWalletAddress: String!
+  thumbnailUrl: String
+  title: String!
+  totalDuration: Int!
+  totalLessons: Int!
+  totalStudents: Int!
+  updatedAt: DateTime!
+  videoUrl: String
+}
+
+type CourseLesson {
+  courseId: ID!
+  createdAt: DateTime!
+  description: String
+  duration: Int!
+  id: ID!
+  isFree: Boolean!
+  lessonNumber: Int!
+  title: String!
+  videoUrl: String!
+}
+
+input CreateCourseInput {
+  category: String
+  description: String
+  priceYd: Float!
+  status: String! = "draft"
+  teacherWalletAddress: String!
+  thumbnailUrl: String
+  title: String!
+  videoUrl: String
+}
+
+input CreateLearningRecordInput {
+  completed: Boolean! = false
+  courseId: ID!
+  lessonId: ID!
+  progressPercentage: Int! = 0
+  userWalletAddress: String!
+  watchTime: Int! = 0
+}
+
+input CreateReviewInput {
+  comment: String
+  courseId: String!
+  rating: Int!
+  studentWalletAddress: String!
+}
+
+input CreateTransactionInput {
+  amountYd: Float!
+  fromWalletAddress: String!
+  metadata: JSONObject
+  toWalletAddress: String!
+  transactionHash: String
+  transactionType: String!
+}
+
+input CreateUploadUrlInput {
+  contentType: String!
+  fileName: String!
+}
+
+input CreateUserInput {
+  email: String
+  role: String!
+  username: String
+  walletAddress: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
+
+type LearningRecord {
+  completed: Boolean!
+  courseId: ID!
+  createdAt: DateTime!
+  id: ID!
+  lastWatchedAt: DateTime!
+  lessonId: ID!
+  progressPercentage: Int!
+  userWalletAddress: String!
+  watchTime: Int!
+}
+
+input LoginInput {
+  message: String!
+  signature: String!
+  walletAddress: String!
+}
+
+type Mutation {
+  """课程评分达标后，由后端调用 CoursePlatform.awardTeacherBadge 铸造教师徽章"""
+  awardTeacherBadgeOnchain(input: AwardTeacherBadgeInput!): OnchainTransaction!
+
+  """学生完成课程后，由后端调用 CoursePlatform.completeCourse 铸造证书"""
+  completeCourseOnchain(input: CompleteCourseOnchainInput!): OnchainTransaction!
+  createCourse(createCourseInput: CreateCourseInput!): Course!
+  createLearningRecord(createLearningRecordInput: CreateLearningRecordInput!): LearningRecord!
+
+  """Create a review for a course (requires authentication)"""
+  createReview(createReviewInput: CreateReviewInput!): Review!
+  createTransaction(createTransactionInput: CreateTransactionInput!): Transaction!
+  createUser(createUserInput: CreateUserInput!): User!
+
+  """生成上传到 AWS S3 的直传签名 URL（PUT）。前端可直接用该 URL 上传视频文件。"""
+  generateVideoUploadUrl(input: CreateUploadUrlInput!): UploadUrl!
+
+  """钱包签名登录，返回 JWT。签名消息格式：Login to Web3 University:<timestamp_ms>，有效期5分钟。"""
+  login(input: LoginInput!): AuthToken!
+  removeUser(walletAddress: String!): Boolean!
+  updateLearningRecord(id: ID!, updateLearningRecordInput: UpdateLearningRecordInput!): LearningRecord!
+
+  """更新当前用户个人资料（昵称、邮箱、头像）。需登录。"""
+  updateProfile(input: UpdateProfileInput!): User!
+
+  """Update an existing review (requires authentication)"""
+  updateReview(id: ID!, updateReviewInput: UpdateReviewInput!): Review!
+  updateTransactionStatus(id: ID!, status: String!): Transaction!
+  updateUser(updateUserInput: UpdateUserInput!, walletAddress: String!): User!
+}
+
+type OnchainTransaction {
+  blockNumber: Int
+  chainId: Int!
+  status: String!
+  transactionHash: ID!
+}
+
+type Query {
+  course(id: ID!): Course!
+  courseLessons(courseId: ID!): [CourseLesson!]!
+  courses(category: String, status: String, teacherWalletAddress: String): [Course!]!
+  learningRecord(id: ID!): LearningRecord!
+  learningRecords(courseId: ID, userWalletAddress: String): [LearningRecord!]!
+
+  """返回当前登录用户信息，无需传入钱包地址"""
+  me: User!
+  review(id: ID!): Review!
+  reviews(courseId: ID, studentWalletAddress: String, teacherWalletAddress: String): [Review!]!
+  transaction(id: ID!): Transaction!
+  transactions(walletAddress: String): [Transaction!]!
+  user(walletAddress: String!): User!
+  users: [User!]!
+}
+
+type Review {
+  comment: String
+  course: Course
+  courseId: ID!
+  createdAt: DateTime!
+  id: ID!
+  rating: Int!
+  student: User
+  studentWalletAddress: String!
+  updatedAt: DateTime!
+}
+
+type Transaction {
+  amountYd: Float!
+  createdAt: DateTime!
+  fromWalletAddress: String!
+  id: ID!
+  metadata: JSONObject
+  status: String!
+  toWalletAddress: String!
+  transactionHash: String
+  transactionType: String!
+}
+
+input UpdateLearningRecordInput {
+  completed: Boolean
+  progressPercentage: Int
+  watchTime: Int
+}
+
+input UpdateProfileInput {
+  avatarUrl: String
+  email: String
+  username: String
+}
+
+input UpdateReviewInput {
+  comment: String
+  rating: Int
+}
+
+input UpdateUserInput {
+  email: String
+  username: String
+  ydTokenBalance: Float
+}
+
+type UploadUrl {
+  key: String!
+  publicUrl: String!
+  uploadUrl: String!
+}
+
+type User {
+  avatarUrl: String
+  createdAt: DateTime!
+  email: String
+  role: String!
+  updatedAt: DateTime!
+  username: String
+  walletAddress: String!
+  ydTokenBalance: Float!
+}

@@ -1,0 +1,10 @@
+process.env.SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL ?? "http://localhost:8545";
+process.env.BACKEND_SIGNER_PRIVATE_KEY =
+	process.env.BACKEND_SIGNER_PRIVATE_KEY ??
+	"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+process.env.COURSE_PLATFORM_ADDRESS =
+	process.env.COURSE_PLATFORM_ADDRESS ?? "0x14d9DC7C093271e4D0D065FB7F15596fc5305942";
+process.env.STUDENT_CERTIFICATE_ADDRESS =
+	process.env.STUDENT_CERTIFICATE_ADDRESS ?? "0xB3a57E86DF7D86FDc9Ef913a295EF94d93D349fa";
+process.env.TEACHER_BADGE_ADDRESS =
+	process.env.TEACHER_BADGE_ADDRESS ?? "0x10BEeb97F2cE91442cBb60be3353a40791BD5C00";

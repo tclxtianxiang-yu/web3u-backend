@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { forwardRef, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { SupabaseService } from "../supabase/supabase.service";
+import { OnchainService } from "../onchain/onchain.service";
 import type { CreateCourseInput } from "./dto/create-course.input";
 import type { Course, CourseLesson } from "./entities/course.entity";
 
@@ -35,9 +36,14 @@ type CourseLessonRow = {
 
 @Injectable()
 export class CourseService {
-	constructor(private readonly supabaseService: SupabaseService) {}
+	constructor(
+		private readonly supabaseService: SupabaseService,
+		@Inject(forwardRef(() => OnchainService))
+		private readonly onchainService: OnchainService,
+	) {}
 
 	async create(createCourseInput: CreateCourseInput): Promise<Course> {
+		// Step 1: Insert course to database
 		const { data, error } = await this.supabaseService
 			.getClient()
 			.from("courses")
@@ -58,7 +64,26 @@ export class CourseService {
 			throw new Error(`Failed to create course: ${error.message}`);
 		}
 
-		return this.mapToCourse(data);
+		const course = this.mapToCourse(data);
+
+		// Step 2: Register on-chain if status is "published" and price > 0
+		if (createCourseInput.status === "published" && createCourseInput.priceYd > 0) {
+			try {
+				await this.onchainService.createCourseOnchain({
+					courseId: course.id,
+					teacherAddress: createCourseInput.teacherWalletAddress,
+					priceYd: createCourseInput.priceYd,
+					shouldPublish: true,
+				});
+			} catch (onchainError: any) {
+				// Rollback: Delete from database if on-chain registration fails
+				await this.supabaseService.getClient().from("courses").delete().eq("id", course.id);
+
+				throw new Error(`课程链上注册失败，已回滚数据库: ${onchainError.message}`);
+			}
+		}
+
+		return course;
 	}
 
 	async findAll(filters?: { teacherWalletAddress?: string; status?: string; category?: string }): Promise<Course[]> {

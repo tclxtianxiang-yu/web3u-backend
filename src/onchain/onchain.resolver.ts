@@ -2,6 +2,7 @@ import { Args, Mutation, Resolver } from "@nestjs/graphql";
 import { UseGuards } from "@nestjs/common";
 import { CompleteCourseOnchainInput } from "./dto/complete-course.input";
 import { AwardTeacherBadgeInput } from "./dto/award-teacher-badge.input";
+import { CreateCourseOnchainInput } from "./dto/create-course-onchain.input";
 import { OnchainTransaction } from "./entities/onchain-transaction.entity";
 import { OnchainService } from "./onchain.service";
 import { GqlAuthGuard } from "../auth/gql-auth.guard";
@@ -20,5 +21,11 @@ export class OnchainResolver {
 	@Mutation(() => OnchainTransaction, { description: "课程评分达标后，由后端调用 CoursePlatform.awardTeacherBadge 铸造教师徽章" })
 	awardTeacherBadgeOnchain(@Args("input") input: AwardTeacherBadgeInput) {
 		return this.onchainService.awardTeacherBadge(input);
+	}
+
+	@UseGuards(GqlAuthGuard)
+	@Mutation(() => OnchainTransaction, { description: "教师发布课程后，由后端调用 CourseRegistry.createCourse 注册课程到链上" })
+	createCourseOnchain(@Args("input") input: CreateCourseOnchainInput) {
+		return this.onchainService.createCourseOnchain(input);
 	}
 }

@@ -22,7 +22,11 @@ fi
 AWS_REGION="${AWS_REGION:-ap-southeast-1}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 ECR_REPO="${ECR_REPO:-web3u-backend}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+# 默认使用时间戳 tag；如果 .env 写了 latest 也会自动改为时间戳（可手动 export IMAGE_TAG=xxx 覆盖）
+if [ -z "${IMAGE_TAG:-}" ] || [ "${IMAGE_TAG}" = "latest" ]; then
+  IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
+  echo "==> Using timestamp IMAGE_TAG: $IMAGE_TAG"
+fi
 ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
 APP_RUNNER_SERVICE="${APP_RUNNER_SERVICE:-web3u-backend}"
 APP_RUNNER_ECR_ROLE="${APP_RUNNER_ECR_ROLE:-arn:aws:iam::$AWS_ACCOUNT_ID:role/service-role/AppRunnerECRAccessRole}"
@@ -42,7 +46,7 @@ echo "==> Ensuring buildx builder (for linux/amd64)..."
 docker buildx inspect web3u-builder >/dev/null 2>&1 || docker buildx create --name web3u-builder --use
 docker buildx use web3u-builder
 
-echo "==> Building & pushing image (linux/amd64)..."
+echo "==> Building & pushing image (linux/amd64) $ECR_URI:$IMAGE_TAG..."
 docker buildx build --platform linux/amd64 -t "$ECR_URI:$IMAGE_TAG" --push .
 
 echo "==> Preparing App Runner source config..."
@@ -76,6 +80,7 @@ cat > /tmp/apprunner-source.json <<EOF
       }
     }
   },
+  "AutoDeploymentsEnabled": true,
   "AuthenticationConfiguration": {
     "AccessRoleArn": "$APP_RUNNER_ECR_ROLE"
   }

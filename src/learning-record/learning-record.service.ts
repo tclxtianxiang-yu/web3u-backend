@@ -22,13 +22,57 @@ export class LearningRecordService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async create(createLearningRecordInput: CreateLearningRecordInput): Promise<LearningRecord> {
+    // For single-video courses: lessonId should be NULL
+    // For multi-lesson courses: lessonId should reference an actual lesson
+    const lessonId = createLearningRecordInput.lessonId || null;
+
+    // Check if a record already exists
+    const existingQuery = this.supabaseService
+      .getClient()
+      .from('learning_records')
+      .select('*')
+      .eq('user_wallet_address', createLearningRecordInput.userWalletAddress)
+      .eq('course_id', createLearningRecordInput.courseId);
+
+    // Add lesson_id filter (handle NULL case)
+    if (lessonId === null) {
+      existingQuery.is('lesson_id', null);
+    } else {
+      existingQuery.eq('lesson_id', lessonId);
+    }
+
+    const { data: existingRecord } = await existingQuery.maybeSingle();
+
+    // If record exists, update it
+    if (existingRecord) {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('learning_records')
+        .update({
+          watch_time: createLearningRecordInput.watchTime ?? existingRecord.watch_time,
+          progress_percentage: createLearningRecordInput.progressPercentage ?? existingRecord.progress_percentage,
+          completed: createLearningRecordInput.completed ?? existingRecord.completed,
+          last_watched_at: new Date().toISOString(),
+        })
+        .eq('id', existingRecord.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to update learning record: ${error.message}`);
+      }
+
+      return this.mapToLearningRecord(data);
+    }
+
+    // Create new record
     const { data, error } = await this.supabaseService
       .getClient()
       .from('learning_records')
       .insert({
         user_wallet_address: createLearningRecordInput.userWalletAddress,
         course_id: createLearningRecordInput.courseId,
-        lesson_id: createLearningRecordInput.lessonId,
+        lesson_id: lessonId,
         watch_time: createLearningRecordInput.watchTime,
         progress_percentage: createLearningRecordInput.progressPercentage,
         completed: createLearningRecordInput.completed,

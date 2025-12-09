@@ -44,7 +44,7 @@ export class CourseService {
 	) {}
 
 	async create(createCourseInput: CreateCourseInput): Promise<Course> {
-		// Step 1: Insert course to database
+		// Step 1: Insert course to database (ALWAYS as draft first, will update later if needed)
 		const { data, error } = await this.supabaseService
 			.getClient()
 			.from("courses")
@@ -56,7 +56,7 @@ export class CourseService {
 				category: createCourseInput.category,
 				thumbnail_url: createCourseInput.thumbnailUrl,
 				video_url: createCourseInput.videoUrl,
-				status: createCourseInput.status,
+				status: "draft", // Always create as draft first
 			})
 			.select()
 			.single();
@@ -87,17 +87,24 @@ export class CourseService {
 
 		// Step 3: If user wants to publish immediately, update the status
 		if (createCourseInput.status === "published" && createCourseInput.priceYd > 0) {
+			console.log(`🔄 [createCourse] 尝试立即发布课程: ${course.id}`);
 			try {
 				// Use updateCourse to publish (this will call updateCourseStatus on-chain)
-				return await this.updateCourse(
+				console.log(`🔄 [createCourse] 调用 updateCourse 来发布课程...`);
+				const publishedCourse = await this.updateCourse(
 					course.id,
 					{ status: "published" },
 					createCourseInput.teacherWalletAddress,
 				);
+				console.log(`✅ [createCourse] updateCourse 成功返回，状态: ${publishedCourse.status}`);
+				return publishedCourse;
 			} catch (publishError: any) {
 				// If publish fails, keep the course as DRAFT
-				console.warn(`课程创建成功但发布失败: ${publishError.message}`);
+				console.error(`❌ [createCourse] 发布失败，进入 catch 块: ${publishError.message}`);
+				console.error(`❌ [createCourse] 完整错误:`, publishError);
+
 				// Update database status back to draft
+				console.log(`🔄 [createCourse] 回滚数据库状态为 draft...`);
 				await this.supabaseService
 					.getClient()
 					.from("courses")
@@ -105,10 +112,14 @@ export class CourseService {
 					.eq("id", course.id);
 
 				// Return the draft course
-				return await this.findOne(course.id);
+				console.log(`🔄 [createCourse] 返回 draft 状态的课程...`);
+				const draftCourse = await this.findOne(course.id);
+				console.log(`📤 [createCourse] 返回课程状态: ${draftCourse.status}`);
+				return draftCourse;
 			}
 		}
 
+		console.log(`📤 [createCourse] 返回课程 (未立即发布), 状态: ${course.status}`);
 		return course;
 	}
 
@@ -248,39 +259,61 @@ export class CourseService {
 		const updatedCourse = this.mapToCourse(data);
 
 		// Step 4: Handle on-chain status changes
-		// If status changed from draft to published, register on-chain
-		if (
-			existingCourse.status !== "published" &&
-			updateCourseInput.status === "published" &&
-			updatedCourse.priceYd > 0
-		) {
-			try {
-				await this.onchainService.createCourseOnchain({
-					courseId: updatedCourse.id,
-					teacherAddress: updatedCourse.teacherWalletAddress,
-					priceYd: updatedCourse.priceYd,
-					shouldPublish: true,
-				});
-			} catch (onchainError: any) {
-				// Rollback status change
-				await this.supabaseService
-					.getClient()
-					.from("courses")
-					.update({ status: existingCourse.status })
-					.eq("id", courseId);
+		// If status is being updated and price > 0, sync to on-chain
+		if (updateCourseInput.status && updatedCourse.priceYd > 0) {
+			console.log(`🔄 [updateCourse] 检查是否需要同步链上状态...`);
+			console.log(`   旧状态: ${existingCourse.status}, 新状态: ${updateCourseInput.status}`);
+			// Only sync status changes: draft→published, published→archived, etc.
+			if (updateCourseInput.status !== existingCourse.status) {
+				console.log(`🔄 [updateCourse] 状态已改变，需要同步到链上`);
+				try {
+					// Call updateCourseStatus to sync the new status
+					console.log(`🔄 [updateCourse] 调用 onchainService.updateCourseStatus...`);
+					await this.onchainService.updateCourseStatus(
+						updatedCourse.id,
+						updateCourseInput.status as "draft" | "published" | "archived",
+					);
+					console.log(`✅ [updateCourse] 链上状态更新成功`);
+				} catch (onchainError: any) {
+					console.error(`❌ [updateCourse] 链上状态更新失败: ${onchainError.message}`);
+					// Check if error is "course does not exist"
+					if (onchainError.message?.includes("不存在")) {
+						console.log(`🔄 [updateCourse] 课程不存在，尝试先创建...`);
+						// Course not on-chain yet, create it first
+						try {
+							await this.onchainService.createCourseOnchain({
+								courseId: updatedCourse.id,
+								teacherAddress: updatedCourse.teacherWalletAddress,
+								priceYd: updatedCourse.priceYd,
+								shouldPublish: updateCourseInput.status === "published",
+							});
+							console.log(`✅ [updateCourse] 链上创建成功`);
+						} catch (createError: any) {
+							console.error(`❌ [updateCourse] 链上创建失败: ${createError.message}`);
+							// Rollback status change
+							console.log(`🔄 [updateCourse] 回滚数据库状态...`);
+							await this.supabaseService
+								.getClient()
+								.from("courses")
+								.update({ status: existingCourse.status })
+								.eq("id", courseId);
 
-				throw new Error(`课程链上注册失败: ${onchainError.message}`);
-			}
-		}
+							throw new Error(`课程链上创建失败: ${createError.message}`);
+						}
+					} else {
+						// Other error, rollback status change
+						console.log(`🔄 [updateCourse] 其他错误，回滚数据库状态...`);
+						await this.supabaseService
+							.getClient()
+							.from("courses")
+							.update({ status: existingCourse.status })
+							.eq("id", courseId);
 
-		// If status changed to archived, update on-chain status (if course was published)
-		if (updateCourseInput.status === "archived" && existingCourse.status === "published") {
-			try {
-				// TODO: Call onchainService.updateCourseStatus when implemented
-				// For now, just update database
-			} catch (onchainError: any) {
-				// Log error but don't fail the update
-				console.error(`Failed to archive course on-chain: ${onchainError.message}`);
+						throw new Error(`课程状态链上更新失败: ${onchainError.message}`);
+					}
+				}
+			} else {
+				console.log(`ℹ️ [updateCourse] 状态未改变，跳过链上同步`);
 			}
 		}
 

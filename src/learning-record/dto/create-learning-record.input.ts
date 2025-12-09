@@ -10,8 +10,8 @@ export class CreateLearningRecordInput {
   @Field(() => ID)
   courseId: string;
 
-  @Field(() => ID)
-  lessonId: string;
+  @Field(() => ID, { nullable: true })
+  lessonId: string | null;
 
   @Field(() => Int, { defaultValue: 0 })
   watchTime: number;

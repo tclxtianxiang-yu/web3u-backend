@@ -11,8 +11,8 @@ export class LearningRecord {
   @Field(() => ID)
   courseId: string;
 
-  @Field(() => ID)
-  lessonId: string;
+  @Field(() => ID, { nullable: true })
+  lessonId: string | null;
 
   @Field(() => Int)
   watchTime: number;

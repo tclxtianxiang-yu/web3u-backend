@@ -219,6 +219,74 @@ export class OnchainService implements OnModuleInit {
 		};
 	}
 
+	/**
+	 * 更新课程状态（单独方法，用于已存在的课程）
+	 */
+	async updateCourseStatus(courseId: string, status: "draft" | "published" | "archived"): Promise<OnchainTransaction> {
+		console.log(`🔗 [OnchainService.updateCourseStatus] 开始更新课程状态`);
+		console.log(`   课程ID: ${courseId}`);
+		console.log(`   目标状态: ${status}`);
+
+		const wallet = this.ensureWallet();
+		const publicClient = this.ensurePublicClient() as any;
+
+		// 检查课程是否存在
+		console.log(`🔗 [OnchainService.updateCourseStatus] 检查课程是否存在...`);
+		const exists = (await publicClient.readContract({
+			address: this.courseRegistryAddress,
+			abi: courseRegistryAbi,
+			functionName: "courseExists",
+			args: [courseId],
+		} as any)) as boolean;
+
+		console.log(`🔗 [OnchainService.updateCourseStatus] 课程存在: ${exists}`);
+
+		if (!exists) {
+			throw new Error("课程不存在，无法更新状态");
+		}
+
+		// 状态映射: draft=0, published=1, archived=2
+		const statusMap = { draft: 0, published: 1, archived: 2 };
+		const statusValue = statusMap[status];
+
+		console.log(`🔗 [OnchainService.updateCourseStatus] 状态值映射: ${status} -> ${statusValue}`);
+
+		// 调用 updateCourseStatus
+		console.log(`🔗 [OnchainService.updateCourseStatus] 发送链上交易...`);
+		const updateHash = await wallet.writeContract({
+			address: this.courseRegistryAddress,
+			abi: courseRegistryAbi,
+			functionName: "updateCourseStatus",
+			account: this.backendAccount,
+			chain: sepolia,
+			args: [courseId, statusValue],
+			gas: 100000n, // 手动设置 Gas limit 以避免 out of gas 错误
+		} as any);
+
+		console.log(`🔗 [OnchainService.updateCourseStatus] 交易已发送: ${updateHash}`);
+		console.log(`🔗 [OnchainService.updateCourseStatus] 等待交易确认...`);
+
+		const updateReceipt = await publicClient.waitForTransactionReceipt({
+			hash: updateHash,
+			confirmations: 1,
+		});
+
+		console.log(`🔗 [OnchainService.updateCourseStatus] 交易状态: ${updateReceipt.status}`);
+
+		if (updateReceipt.status !== "success") {
+			throw new Error(`课程状态更新失败: status=${status}`);
+		}
+
+		console.log(`✅ [OnchainService.updateCourseStatus] 状态更新成功完成`);
+
+		return {
+			transactionHash: updateHash,
+			chainId: sepolia.id,
+			blockNumber: updateReceipt.blockNumber ? Number(updateReceipt.blockNumber) : undefined,
+			status: updateReceipt.status,
+		};
+	}
+
 	private assertHexEnv(key: string): HexString {
 		const value = process.env[key] as string | undefined;
 		if (!value) {

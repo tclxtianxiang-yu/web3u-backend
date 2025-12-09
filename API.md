@@ -88,9 +88,23 @@ mutation {
 - `createCourse(createCourseInput)`: 创建课程（默认 status = draft）。
   - 必填：`title`, `priceYd`, `teacherWalletAddress`
   - 选填：`description`, `category`, `thumbnailUrl`, `videoUrl`, `status`
+  - 注意：如果 `priceYd > 0`，会自动注册到链上；如果 `status = "published"`，会在创建后自动发布
+
+- `updateCourse(courseId, updateCourseInput)`: 更新课程（需要认证）。
+  - 只有课程拥有者可以更新
+  - 可更新字段：`title`, `description`, `category`, `thumbnailUrl`, `videoUrl`, `status`, `priceYd`
+  - 如果状态从 `draft` 变更为 `published`，会同步更新链上状态
+  - 需要在请求头添加 `Authorization: Bearer <token>`
+
+- `removeCourse(courseId)`: 软删除课程（需要认证）。
+  - 只有课程拥有者可以删除
+  - 实际是将状态设置为 `archived`
+  - 如果课程已发布，会同步更新链上状态
+  - 需要在请求头添加 `Authorization: Bearer <token>`
 
 示例：
 ```graphql
+# 创建课程
 mutation {
   createCourse(createCourseInput:{
     title:"Solidity 101"
@@ -99,6 +113,29 @@ mutation {
     priceYd:100
     status:"draft"
   }) { id title status }
+}
+
+# 更新课程
+mutation {
+  updateCourse(
+    courseId: "course-uuid"
+    updateCourseInput: {
+      title: "Solidity 101 - 更新版"
+      status: "published"
+    }
+  ) {
+    id
+    title
+    status
+  }
+}
+
+# 删除（归档）课程
+mutation {
+  removeCourse(courseId: "course-uuid") {
+    id
+    status
+  }
 }
 ```
 
@@ -147,19 +184,28 @@ mutation {
 ### 6) 登录 / 鉴权
 - `login(input: { walletAddress, message, signature })`: 钱包签名登录，返回 JWT。签名消息格式：`Login to Web3 University:<timestamp_ms>`（允许 5 分钟内的时间偏差）。前端拿到 JWT 后，后续调用需要鉴权的 Mutation（上传、链上写操作）时在请求头带上 `Authorization: Bearer <token>`。
 
-### 7) 链上写操作（后端 signer 调用 CoursePlatform 合约）
-> 注意：这两个 Mutation 需要后端环境配置好 RPC、合约地址和私钥；调用后会真的发链上交易（目前主分支为单元测试环境 mock，生产请确认环境）。
+### 7) 链上写操作（后端 signer 调用合约）
+> 注意：这些 Mutation 需要后端环境配置好 RPC、合约地址和私钥；调用后会真的发链上交易。所有链上操作都需要认证（JWT token）。
 
-- `completeCourseOnchain(input)`: 学生完成课程 → 铸造证书 NFT  
-  校验流程：检查 `hasPurchased`（CoursePlatform）→ 检查 `hasCertificate`（StudentCertificate）→ 调用 `completeCourse`。  
+- `completeCourseOnchain(input)`: 学生完成课程 → 铸造证书 NFT
+  校验流程：检查 `hasPurchased`（CoursePlatform）→ 检查 `hasCertificate`（StudentCertificate）→ 调用 `completeCourse`。
   入参：`studentAddress`, `courseId`, `metadataURI`（证书元数据）。
+  需要在请求头添加 `Authorization: Bearer <token>`。
 
-- `awardTeacherBadgeOnchain(input)`: 课程评分达标 → 铸造教师徽章 NFT  
-  校验流程：检查 `hasBadge`（TeacherBadge）→ 调用 `awardTeacherBadge`。  
+- `awardTeacherBadgeOnchain(input)`: 课程评分达标 → 铸造教师徽章 NFT
+  校验流程：检查 `hasBadge`（TeacherBadge）→ 调用 `awardTeacherBadge`。
   入参：`teacherAddress`, `courseId`, `ratingScore(80-100)`, `metadataURI`。
+  需要在请求头添加 `Authorization: Bearer <token>`。
+
+- `createCourseOnchain(input)`: 手动注册课程到链上
+  用于将已存在的课程注册到 CourseRegistry 合约。
+  入参：`courseId`, `teacherAddress`, `priceYd`, `shouldPublish`。
+  注意：通常不需要手动调用，`createCourse` 会自动处理链上注册。
+  需要在请求头添加 `Authorization: Bearer <token>`。
 
 示例：
 ```graphql
+# 完成课程并铸造证书
 mutation {
   completeCourseOnchain(input:{
     studentAddress:"0xstudent"
@@ -170,6 +216,19 @@ mutation {
     status
     blockNumber
     chainId
+  }
+}
+
+# 手动注册课程到链上（通常不需要）
+mutation {
+  createCourseOnchain(input:{
+    courseId:"course-123"
+    teacherAddress:"0xteacher"
+    priceYd:100
+    shouldPublish:false
+  }) {
+    transactionHash
+    status
   }
 }
 ```

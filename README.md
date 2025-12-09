@@ -109,6 +109,8 @@ http://localhost:3000/graphql
 
 ### On-chain mutations
 
+> 注意：所有链上操作需要认证。需要先调用 login 获取 JWT，并在请求头添加 `Authorization: Bearer <token>`
+
 **完成课程并铸造证书**
 ```graphql
 mutation {
@@ -138,6 +140,21 @@ mutation {
     status
     blockNumber
     chainId
+  }
+}
+```
+
+**手动注册课程到链上（通常不需要，createCourse 会自动处理）**
+```graphql
+mutation {
+  createCourseOnchain(input: {
+    courseId: "course-123"
+    teacherAddress: "0xTeacher"
+    priceYd: 100
+    shouldPublish: false
+  }) {
+    transactionHash
+    status
   }
 }
 ```
@@ -182,6 +199,34 @@ mutation {
   }) {
     id
     title
+    status
+  }
+}
+```
+
+**Update a course (requires authentication):**
+```graphql
+mutation {
+  updateCourse(
+    courseId: "course-uuid"
+    updateCourseInput: {
+      title: "Solidity Basics - Updated"
+      status: "published"
+    }
+  ) {
+    id
+    title
+    status
+  }
+}
+```
+
+**Delete (archive) a course (requires authentication):**
+```graphql
+mutation {
+  removeCourse(courseId: "course-uuid") {
+    id
+    status
   }
 }
 ```
@@ -236,12 +281,19 @@ mutation {
 
 - ✅ User management with wallet address as primary key
 - ✅ Course catalog and lesson management
+  - ✅ Create, update, and delete (archive) courses
+  - ✅ Automatic on-chain registration for courses with price > 0
+  - ✅ On-chain status synchronization (draft → published → archived)
+  - ✅ Owner-only course management with JWT authentication
 - ✅ YD token transaction tracking
 - ✅ Learning progress tracking per lesson
 - ✅ Course reviews and ratings
 - ✅ NFT certificate tracking (on-chain data)
 - ✅ Teacher NFT badge system
-- ✅ 后端通过 viem 调用 CoursePlatform 合约 (completeCourse / awardTeacherBadge)
+- ✅ On-chain operations via viem:
+  - ✅ Course registration to CourseRegistry
+  - ✅ Certificate minting (completeCourse)
+  - ✅ Teacher badge minting (awardTeacherBadge)
 - ✅ 生成 AWS S3 视频直传签名，支持前端直接上传
 - ✅ 钱包签名登录，敏感 Mutation 需携带 JWT
 - ✅ GraphQL API with type-safe queries and mutations

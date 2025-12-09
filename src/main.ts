@@ -20,8 +20,8 @@ async function bootstrap() {
 
 	const port = process.env.PORT || 3000;
 	// 在本地沙箱/开发环境使用 127.0.0.1 以避免某些环境对 0.0.0.0 的限制
-	// const IP = "127.0.0.1";
-	const IP = "0.0.0.0";
+	const IP = "127.0.0.1";
+	// const IP = "0.0.0.0";
 	await app.listen(port, IP);
 
 	console.log(`🚀 Application is running on: http://${IP}:${port}`);

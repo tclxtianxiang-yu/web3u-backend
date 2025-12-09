@@ -179,22 +179,35 @@ export class OnchainService implements OnModuleInit {
 
 		// Step 2: 如果需要发布，更新课程状态为 PUBLISHED (1)
 		if (input.shouldPublish) {
-			const updateHash = await wallet.writeContract({
-				address: this.courseRegistryAddress,
-				abi: courseRegistryAbi,
-				functionName: "updateCourseStatus",
-				account: this.backendAccount,
-				chain: sepolia,
-				args: [input.courseId, 1], // 1 = PUBLISHED
-			} as any);
+			try {
+				const updateHash = await wallet.writeContract({
+					address: this.courseRegistryAddress,
+					abi: courseRegistryAbi,
+					functionName: "updateCourseStatus",
+					account: this.backendAccount,
+					chain: sepolia,
+					args: [input.courseId, 1], // 1 = PUBLISHED
+				} as any);
 
-			const updateReceipt = await publicClient.waitForTransactionReceipt({
-				hash: updateHash,
-				confirmations: 1,
-			});
+				const updateReceipt = await publicClient.waitForTransactionReceipt({
+					hash: updateHash,
+					confirmations: 1,
+				});
 
-			if (updateReceipt.status !== "success") {
-				throw new Error("课程状态更新失败(已创建但未发布)");
+				if (updateReceipt.status !== "success") {
+					throw new Error("课程状态更新失败(已创建但未发布)");
+				}
+			} catch (updateError: any) {
+				// Log the detailed error for debugging
+				console.error("❌ updateCourseStatus 调用失败:", updateError);
+				console.error("  courseId:", input.courseId);
+				console.error("  teacherAddress:", input.teacherAddress);
+				console.error("  backendAccount:", this.backendAccount?.address);
+				console.error("  registryAddress:", this.courseRegistryAddress);
+
+				// Extract revert reason if available
+				const revertReason = updateError.message || updateError.shortMessage || "Unknown error";
+				throw new Error(`课程状态更新失败: ${revertReason}`);
 			}
 		}
 

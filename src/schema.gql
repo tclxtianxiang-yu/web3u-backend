@@ -62,6 +62,13 @@ input CreateCourseInput {
   videoUrl: String
 }
 
+input CreateCourseOnchainInput {
+  courseId: String!
+  priceYd: Float!
+  shouldPublish: Boolean! = true
+  teacherAddress: String!
+}
+
 input CreateLearningRecordInput {
   completed: Boolean! = false
   courseId: ID!
@@ -134,6 +141,9 @@ type Mutation {
   """学生完成课程后，由后端调用 CoursePlatform.completeCourse 铸造证书"""
   completeCourseOnchain(input: CompleteCourseOnchainInput!): OnchainTransaction!
   createCourse(createCourseInput: CreateCourseInput!): Course!
+
+  """教师发布课程后，由后端调用 CourseRegistry.createCourse 注册课程到链上"""
+  createCourseOnchain(input: CreateCourseOnchainInput!): OnchainTransaction!
   createLearningRecord(createLearningRecordInput: CreateLearningRecordInput!): LearningRecord!
 
   """Create a review for a course (requires authentication)"""
@@ -146,7 +156,15 @@ type Mutation {
 
   """钱包签名登录，返回 JWT。签名消息格式：Login to Web3 University:<timestamp_ms>，有效期5分钟。"""
   login(input: LoginInput!): AuthToken!
+
+  """
+  Soft delete a course by setting its status to archived. Only the course owner can delete it.
+  """
+  removeCourse(courseId: ID!): Course!
   removeUser(walletAddress: String!): Boolean!
+
+  """Update an existing course. Only the course owner can update it."""
+  updateCourse(courseId: ID!, updateCourseInput: UpdateCourseInput!): Course!
   updateLearningRecord(id: ID!, updateLearningRecordInput: UpdateLearningRecordInput!): LearningRecord!
 
   """更新当前用户个人资料（昵称、邮箱、头像）。需登录。"""
@@ -204,6 +222,16 @@ type Transaction {
   toWalletAddress: String!
   transactionHash: String
   transactionType: String!
+}
+
+input UpdateCourseInput {
+  category: String
+  description: String
+  priceYd: Float
+  status: String
+  thumbnailUrl: String
+  title: String
+  videoUrl: String
 }
 
 input UpdateLearningRecordInput {

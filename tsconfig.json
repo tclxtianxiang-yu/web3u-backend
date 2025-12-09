@@ -19,5 +19,5 @@
 		"noFallthroughCasesInSwitch": false,
 		"esModuleInterop": true
 	},
-	"exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.test.ts"]
+	"exclude": ["node_modules", "dist", "test", "scripts", "**/*.spec.ts", "**/*.test.ts"]
 }

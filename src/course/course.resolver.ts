@@ -1,8 +1,12 @@
 import { Args, ID, Int, Mutation, Parent, Query, ResolveField, Resolver } from "@nestjs/graphql";
+import { UseGuards } from "@nestjs/common";
 import { Review } from "../review/entities/review.entity";
 import { ReviewService } from "../review/review.service";
+import { GqlAuthGuard } from "../auth/gql-auth.guard";
+import { CurrentUser } from "../auth/current-user.decorator";
 import { CourseService } from "./course.service";
 import { CreateCourseInput } from "./dto/create-course.input";
+import { UpdateCourseInput } from "./dto/update-course.input";
 import { Course, CourseLesson } from "./entities/course.entity";
 
 @Resolver(() => Course)
@@ -34,6 +38,25 @@ export class CourseResolver {
 	@Query(() => [CourseLesson], { name: "courseLessons" })
 	findLessonsByCourseId(@Args("courseId", { type: () => ID }) courseId: string) {
 		return this.courseService.findLessonsByCourseId(courseId);
+	}
+
+	@UseGuards(GqlAuthGuard)
+	@Mutation(() => Course, { description: "Update an existing course. Only the course owner can update it." })
+	updateCourse(
+		@Args("courseId", { type: () => ID }) courseId: string,
+		@Args("updateCourseInput") updateCourseInput: UpdateCourseInput,
+		@CurrentUser() user: { walletAddress: string },
+	) {
+		return this.courseService.updateCourse(courseId, updateCourseInput, user.walletAddress);
+	}
+
+	@UseGuards(GqlAuthGuard)
+	@Mutation(() => Course, { description: "Soft delete a course by setting its status to archived. Only the course owner can delete it." })
+	removeCourse(
+		@Args("courseId", { type: () => ID }) courseId: string,
+		@CurrentUser() user: { walletAddress: string },
+	) {
+		return this.courseService.removeCourse(courseId, user.walletAddress);
 	}
 
 	@ResolveField(() => Int)
